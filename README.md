@@ -1,11 +1,162 @@
-Proiectul InkTime a fost primul meu contact real cu tot procesul de proiectare hardware cap-coadă. Am pornit de la materialele de pe OCW(MRD, PRD, ERD și detailed design) și de la schema dată și ideea a fost să ajung de la niște specificații destul de teoretice la un PCB real, care chiar poate fi produs. La început m-am concentrat pe schematic, unde am reconstruit toată schema în Fusion, având grijă să fie organizată logic pe blocuri, ca în model: alimentare, microcontroller, senzori, display, USB, etc.. Acolo am pierdut ceva timp să înțeleg warning-urile din ERC, pentru că unele trebuie acceptate (ex. "only one pin on net"), iar altele chiar indică probleme reale ce trebuie rezolvate. De asemenea, am avut grijă la componentele marcate N.C., unde am pus ca N.C. atributul și nu valoarea.
+# InkWatch_TSC_Project
 
-După ce schematic-ul a fost stabil și fără erori reale, am trecut la PCB, unde lucrurile au devenit mult mai practice. Primul pas a fost să îmi fac conturul plăcii conform dimensiunilor din fișierul oferit, ceea ce a fost mai complicat decât părea la început, pentru că a trebuit să îl desenez manual și să mă asigur că respect forma și pozițiile pentru butoane și USB. După asta am început placement-ul componentelor, încercând să le grupez în jurul circuitelor principale(MCU, DC/DC, senzori), astfel încât traseele să fie cât mai scurte și logice. Am fost atentă la condensatoarele de decuplare, pe care le-am pus cât mai aproape de pinii de alimentare, și la zona RF, unde antena trebuie să fie la marginea plăcii și complet izolată.
+## Descriere
 
-Zona RF a fost una dintre cele mai importante restricții, pentru că a trebuit să aplic restrict pe top, bottom și să mă asigur că nu există niciun plan de masă sau traseu sub antenă. După ce am înțeles cum funcționează polygon-ul de GND, am creat planul de masă și am dat refill, iar apoi am verificat că zona antenei rămâne complet goală.
+Proiectul meu este un smartwatch simplificat, cu focus pe consum redus și integrarea mai multor funcționalități pe un PCB mic. Am folosit un nRF52840 ca MCU principal și am conectat la el senzori, display e-paper și haptic.
 
-La partea de routing am început inițial cu auto-route ca să văd cum ar arăta, dar ulterior am refăcut manual traseele, pentru a putea controla dimensiunile route-urilor. A fost important să înțeleg diferența dintre trasee de alimentare și semnale: toate net-urile de tip 3V3, VBAT, VBUS, VREG, dar și cele mai speciale, cum ar fi PREVGL, PREVGH sau LX, le-am tratat ca power și le-am făcut cu width de 0.3 mm (sau cât permitea spațiul), în timp ce semnalele precum SDA, SCL, GPIO, SWD, RESET le-am făcut cu 0.15 mm. În zona BGA(sub nRF52840), am fost nevoită să folosesc trasee mai subțiri ca să pot ieși dintre pini, dar după aceea am revenit la dimensiunile normale. De asemenea, am folosit via-uri ca să trec între layere atunci când nu aveam loc, dar am încercat să evit via-uri pe traseele de alimentare și complet în zona RF.
+Funcționalități:
+- display e-paper
+- BLE pentru comunicare
+- accelerometru pentru mișcare
+- feedback haptic
+- încărcare USB-C
 
-Un alt lucru important a fost respectarea constrângerilor din enunț: să nu am unghiuri drepte pe trasee, să am plan de masă pe ambele layere, să nu existe trasee sub antenă, să respect width-urile minime și să trec toate verificările DRC. A trebuit și să încarc fișierul de reguli DRC și să mă asigur că design-ul meu este compatibil cu fabricația(JLCPCB). Pe lângă partea electrică, am ținut cont și de partea mecanică, astfel încât PCB-ul să intre în carcasă și componentele să fie aliniate corect.
+---
 
-Per total, proiectul a fost un mix de înțelegere teoretică și practica, dar pe parcurs am început să înțeleg logica din spatele deciziilor(de ce unele trasee trebuie mai groase, de ce zona RF e critică, de ce placement-ul contează atât de mult). La final am ajuns la un design coerent, care respectă toate regulile și care poate fi trimis mai departe spre fabricație și review.
+## Schema Bloc
+
+```mermaid
+graph TD
+
+    USB["USB-C (J4)"] --> CHARGER["BQ25180 Charger"]
+    CHARGER --> REG["RT6160 3.3V"]
+    REG --> MCU["nRF52840 MCU + BLE"]
+
+    BAT["LiPo Battery"] --> CHARGER
+    BAT --> FUEL["MAX17048 Fuel Gauge"]
+    FUEL --> MCU
+
+    MCU -->|SPI| EPD["EPD Display (J1)"]
+    MCU -->|I2C| IMU["BMA421 IMU"]
+    MCU -->|I2C| HAPTIC["DRV2605 Haptic"]
+
+    MCU --> BTN1["SW_UP"]
+    MCU --> BTN2["SW_DN"]
+    MCU --> BTN3["SW_ENT"]
+
+    MCU --> ANT["2.4GHz Antenna"]
+
+    MCU --> DEBUG["TC2030 SWD"]
+```
+
+## Bill of Materials
+
+| Ref | Component | Package | Funcție | LCSC | Datasheet |
+|-----|----------|--------|--------|------|----------|
+| U1 | nRF52840-QIAA | QFN73 | MCU + BLE | [C190794](https://jlcpcb.com/partdetail/C190794) | https://infocenter.nordicsemi.com |
+| IC1 | BQ25180YBGR | DSBGA-8 | Charger LiPo | [C3682423](https://jlcpcb.com/partdetail/C3682423) | https://www.ti.com |
+| IC9 | RT6160AWSC | WLCSP-15 | Regulator 3.3V | [C7065276](https://jlcpcb.com/partdetail/C7065276) | https://www.richtek.com |
+| U3 | MAX17048G+T10 | DFN | Fuel gauge | [C2682616](https://jlcpcb.com/partdetail/C2682616) | https://www.analog.com |
+| IC3 | BMA421 | LGA | IMU | [C5242966](https://jlcpcb.com/partdetail/C5242966) | https://www.bosch-sensortec.com |
+| IC2 | DRV2605L | VSSOP | Haptic driver | [C527464](https://jlcpcb.com/partdetail/C527464) | https://www.ti.com |
+| D3 | USBLC6 | SOT-23-6 | ESD USB | [C2687116](https://jlcpcb.com/partdetail/C2687116) | https://www.st.com |
+| J4 | USB-C | SMD | Conector alimentare | [C165948](https://jlcpcb.com/partdetail/C165948) | - |
+| J1 | FPC 24 pini | SMD | Conector display | [C393234](https://jlcpcb.com/partdetail/C393234) | - |
+| J2 | TC2030 | PTH | Debug SWD | - | - |
+| ANT1 | 2450AT18B100E | SMD | Antenă BLE | - | https://www.johansontechnology.com |
+
+---
+
+## Funcționalitate Hardware
+
+### Power
+
+USB-C (5V) -> BQ25180 -> RT6160 -> 3.3V -> sistem
+
+- BQ25180 face charging + power path
+- RT6160 generează 3.3V stabil
+- MAX17048 citește nivelul bateriei
+
+---
+
+### MCU - nRF52840
+
+Este componenta principală:
+- BLE integrat
+- controlează toate perifericele
+
+---
+
+### Display E-Paper
+
+Conectat prin SPI:
+- SCK - P0.02
+- MOSI - P0.03
+- CS - P0.05
+- DC - P0.15
+- RST - P0.16
+- BUSY - P0.17
+
+---
+
+### IMU - BMA421
+
+- I2C (SDA P0.06 / SCL P0.07)
+- interrupt pe P0.08 și P1.08
+
+---
+
+### Haptic – DRV2605
+
+- I2C
+- enable pe P0.12
+
+---
+
+### USB
+
+- USB-C pentru alimentare
+- protecție ESD (USBLC6)
+
+---
+
+## Pini nRF52840
+
+| Pin | Semnal | Funcție |
+|-----|--------|--------|
+| P0.02 | SCK | SPI |
+| P0.03 | MOSI | SPI |
+| P0.05 | CS | Display |
+| P0.06 | SDA | I2C |
+| P0.07 | SCL | I2C |
+| P0.08 | INT1 | IMU |
+| P0.12 | HAPTIC_EN | Haptic |
+| P0.13 | SW_UP | Buton |
+| P0.14 | SW_DN | Buton |
+| P0.15 | DC | Display |
+| P0.16 | RST | Display |
+| P0.17 | BUSY | Display |
+| P1.00 | SW_ENT | Buton |
+| P1.01 | EPD_PWR | Power gate |
+| P1.08 | INT2 | IMU |
+| P0.24 | SWDCLK | Debug |
+| P0.25 | SWDIO | Debug |
+
+---
+
+## PCB Design
+
+- 2 layere (Top + Bottom)
+- GND polygon pour pe ambele
+- trasee:
+  - power: 0.3mm
+  - semnal: 0.15mm
+
+### Decizii:
+- antena la margine cu keepout
+- decuplare lângă IC-uri
+- rutare manuală pentru trasee critice
+
+---
+
+## Observații
+
+- rutare destul de densă în zona MCU
+- unele trasee mai subțiri în zona BGA
+- câteva GND trase manual
+
+---
+
+## Concluzie
+
+Proiectul este complet funcțional din punct de vedere hardware și include toate modulele necesare pentru un smartwatch simplu.
